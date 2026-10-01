@@ -15,6 +15,44 @@ env:
   FUZZ_NIGHTLY: 'nightly-2024-06-01'
 
 jobs:
+  lint:
+    name: Lint (root — all workspaces + scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  typecheck-scripts:
+    name: Type-check operational scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check scripts/
+        run: npm run typecheck:scripts
+
   cost-optimization:
     name: Cost model and report
     runs-on: ubuntu-latest

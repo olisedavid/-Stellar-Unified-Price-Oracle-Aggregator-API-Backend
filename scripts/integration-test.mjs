@@ -220,6 +220,7 @@ const testFiles = [
   'tests/integration.test.ts',
   'tests/v2-assets.test.ts',
   'tests/v2-batch-prices.test.ts',
+  'tests/integration-fault-injection.test.ts',
 ];
 
 try {
@@ -234,6 +235,7 @@ try {
       WS_URL:     `ws://localhost:${WS_PORT}`,
       AGGREGATOR_WS_URL:    `ws://localhost:${AGG_WS_PORT}`,
       AGGREGATOR_HEALTH_URL:`http://localhost:${AGG_HEALTH}`,
+      STUB_ORACLE_URL:      `http://localhost:${STUB_PORT}`,
     },
   );
   testExitCode = 0;

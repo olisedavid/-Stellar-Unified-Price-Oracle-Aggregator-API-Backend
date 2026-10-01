@@ -9,23 +9,27 @@
  *   so the migration can be re-run safely without duplicating data.
  *
  * Usage:
- *   tsx scripts/migrate-history-to-timescale.ts [dataDir]
+ *   tsx scripts/migrate-history-to-timescale.ts [dataDir]          # live run
+ *   tsx scripts/migrate-history-to-timescale.ts --dry-run [dataDir] # preview only
+ *   DRY_RUN=true tsx scripts/migrate-history-to-timescale.ts        # env-based dry-run
  *
- * Requires DATABASE_URL to be set.
+ * Requires DATABASE_URL to be set (skipped in dry-run mode).
  */
 
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { log, die, isDryRun, positionalArgs } from './script-utils.js';
 
 const envPath = path.resolve(__dirname, '../.env');
 if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
 }
 
+const positional = positionalArgs();
 const CANDIDATE_DIRS = [
-  process.argv[2],
+  positional[0],
   path.resolve(__dirname, '../data'),
   path.resolve(__dirname, '../services/aggregator/data'),
   path.resolve(__dirname, '../api/data'),
@@ -58,14 +62,19 @@ async function ensureSchema(pool: Pool): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error('DATABASE_URL is not set. Aborting.');
-    process.exit(1);
+  const dryRun = isDryRun();
+  if (dryRun) {
+    log.info('[dry-run] mode active — no rows will be inserted.');
   }
 
-  const pool = new Pool({ connectionString: databaseUrl });
-  await ensureSchema(pool);
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl && !dryRun) die('DATABASE_URL is not set. Aborting.');
+
+  let pool: Pool | null = null;
+  if (!dryRun && databaseUrl) {
+    pool = new Pool({ connectionString: databaseUrl });
+    await ensureSchema(pool);
+  }
 
   let inserted = 0;
   let skipped = 0;
@@ -81,18 +90,18 @@ async function main(): Promise<void> {
 
     for (const file of files) {
       const fullPath = path.join(dir, file);
-      if (seenFiles.has(file)) continue; // first matching dir wins per asset
+      if (seenFiles.has(file)) continue;
       seenFiles.add(file);
 
       const asset = file.replace('history-', '').replace('.json', '').toUpperCase();
-      console.log(`Migrating ${asset} from ${fullPath}...`);
+      log.info(`${dryRun ? '[dry-run] would migrate' : 'Migrating'} ${asset} from ${fullPath}`);
       filesProcessed++;
 
       let records: any[] = [];
       try {
         records = await readHistoryFile(fullPath);
       } catch (err) {
-        console.error(`  Failed to read ${file}:`, err instanceof Error ? err.message : err);
+        log.error(`Failed to read ${file}: ${err instanceof Error ? err.message : err}`);
         continue;
       }
 
@@ -101,8 +110,17 @@ async function main(): Promise<void> {
           skipped++;
           continue;
         }
+
+        if (dryRun) {
+          log.info(
+            `[dry-run] would insert asset=${asset} source=${record.source ?? 'unknown'} ts=${record.timestamp}`,
+          );
+          inserted++;
+          continue;
+        }
+
         try {
-          const result = await pool.query(
+          const result = await pool!.query(
             `INSERT INTO price_history (asset, price, decimals, source, timestamp)
              VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (asset, source, timestamp) DO NOTHING`,
@@ -117,20 +135,22 @@ async function main(): Promise<void> {
           if (result.rowCount && result.rowCount > 0) inserted++;
           else skipped++;
         } catch (err) {
-          console.error(`  Failed to insert record for ${asset}:`, err instanceof Error ? err.message : err);
+          log.error(
+            `Failed to insert record for ${asset}: ${err instanceof Error ? err.message : err}`,
+          );
           skipped++;
         }
       }
     }
   }
 
-  await pool.end();
-  console.log(
-    `\nMigration complete. Files: ${filesProcessed}, inserted: ${inserted}, skipped/duplicate: ${skipped}.`,
-  );
+  if (pool) await pool.end();
+
+  const label = dryRun ? 'Dry-run complete (no mutations)' : 'Migration complete';
+  log.info(`${label}. Files: ${filesProcessed}, inserted: ${inserted}, skipped/duplicate: ${skipped}.`);
 }
 
 main().catch((err) => {
-  console.error('Migration failed:', err);
+  log.error(`Migration failed: ${err instanceof Error ? err.message : err}`);
   process.exit(1);
 });

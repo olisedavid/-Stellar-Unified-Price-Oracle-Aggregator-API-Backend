@@ -21,7 +21,12 @@
     "test:contract": "cd contracts/price-oracle && cargo test",
     "test:backend": "npm run test:aggregator && npm run test:api",
     "test:integration": "node scripts/integration-test.mjs",
-    "typecheck:all": "cd packages/types && npx tsc --noEmit && cd ../../packages/vault-client && npx tsc --noEmit && cd ../../services/aggregator && npx tsc --noEmit && cd ../../api && npx tsc --noEmit",
+    "typecheck:all": "cd packages/types && npx tsc --noEmit && cd ../../packages/vault-client && npx tsc --noEmit && cd ../../services/aggregator && npx tsc --noEmit && cd ../../api && npx tsc --noEmit && cd ../.. && npx tsc --noEmit --project scripts/tsconfig.json",
+    "typecheck:scripts": "npx tsc --noEmit --project scripts/tsconfig.json",
+    "lint": "eslint api/src services/aggregator/src packages scripts --ext .ts,.mjs,.js",
+    "lint:fix": "eslint api/src services/aggregator/src packages scripts --ext .ts,.mjs,.js --fix",
+    "format": "prettier --write \"api/src/**/*.ts\" \"services/aggregator/src/**/*.ts\" \"packages/**/*.ts\" \"scripts/**/*.{ts,mjs,js}\"",
+    "format:check": "prettier --check \"api/src/**/*.ts\" \"services/aggregator/src/**/*.ts\" \"packages/**/*.ts\" \"scripts/**/*.{ts,mjs,js}\"",
     "verify:tools": "node scripts/install-verification-tools.mjs",
     "verify:contract": "node scripts/install-verification-tools.mjs && node scripts/generate-verification-report.mjs --cargo",
     "verify:formal": "node scripts/install-verification-tools.mjs && node scripts/generate-verification-report.mjs",
@@ -32,11 +37,19 @@
     "cost:reconcile": "node scripts/reconcile-cost-invoices.mjs",
     "validate:prices": "node scripts/validate-price-correctness.mjs",
     "rent:extend": "tsx scripts/extend-ttl-job.ts",
+    "rent:extend:dry-run": "tsx scripts/extend-ttl-job.ts --dry-run",
+    "migrate:history": "tsx scripts/migrate-history-to-timescale.ts",
+    "migrate:history:dry-run": "tsx scripts/migrate-history-to-timescale.ts --dry-run",
     "install:all": "npm install",
     "prepare": "(husky || true) && npm run build:packages"
   },
   "devDependencies": {
-    "husky": "^9.1.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^9.7.0",
+    "husky": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.62.0"
   },
   "overrides": {
     "toml": "^4.2.0",
